@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>落入黑洞的情书</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#000;font-family:"PingFang SC","Microsoft YaHei",sans-serif}
+  canvas{display:block;cursor:pointer}
+
+  #letter{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0);opacity:0;transition:all 1.8s cubic-bezier(.23,.88,.35,1);z-index:10;pointer-events:none}
+  #letter.show{transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:auto}
+  #letter.flyaway{transform:translate(-50%,-50%) scale(0) translateY(100px);opacity:0;pointer-events:none;transition:all 1.5s ease-in}
+
+  .envelope{width:340px;height:220px;position:relative;cursor:pointer;margin:0 auto}
+  .env-back{position:absolute;width:100%;height:100%;background:linear-gradient(135deg,#ff8fab,#ff6b9d);border-radius:12px;box-shadow:0 20px 60px rgba(255,105,180,0.5)}
+  .env-flap{position:absolute;top:-1px;left:0;width:100%;height:110px;background:linear-gradient(180deg,#ff7aaf,#ff5f9e);clip-path:polygon(0 0,50% 100%,100% 0);border-radius:12px 12px 0 0;transition:transform 1s ease;z-index:4;transform-origin:top}
+  .env-front{position:absolute;bottom:0;width:100%;height:130px;background:linear-gradient(0deg,#ff6b9d,#ff8fab);border-radius:0 0 12px 12px;z-index:2}
+  .env-heart{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:52px;z-index:3;animation:heartBeat 1.5s ease-in-out infinite;pointer-events:none}
+  @keyframes heartBeat{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.15)}}
+
+  .paper{position:absolute;top:10px;left:15px;right:15px;height:300px;background:#fffafc;border-radius:8px;padding:22px 20px;transform:translateY(60px);opacity:0;transition:all 0.8s ease 0.5s;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:1;line-height:1.85;font-size:14px;color:#4a2c3d}
+  #letter.open .paper{transform:translateY(-190px);opacity:1;z-index:5}
+  #letter.open .env-flap{transform:rotateX(180deg)}
+
+  .close-btn{position:absolute;top:6px;right:10px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#c48;cursor:pointer;z-index:10;opacity:0;transition:opacity 0.3s ease 1.2s;border-radius:50%;pointer-events:none}
+  .close-btn:hover{background:rgba(255,105,180,0.1);color:#e91e63}
+  #letter.open .close-btn{opacity:0.7;pointer-events:auto}
+  #letter.open .close-btn:hover{opacity:1}
+
+  .paper h2{color:#e91e63;font-size:17px;margin-bottom:10px;text-align:center;font-weight:bold}
+  .paper .date{text-align:right;color:#c48;font-size:12px;margin-bottom:12px}
+  .paper p{margin-bottom:10px}
+  .paper .sign{text-align:right;margin-top:16px;color:#e91e63;font-weight:bold}
+
+  .tap-hint{position:absolute;bottom:-35px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;opacity:0.7;white-space:nowrap;pointer-events:none;animation:fadeUp 2s ease-in-out infinite}
+  @keyframes fadeUp{0%,100%{opacity:0.4;transform:translateX(-50%) translateY(0)}50%{opacity:0.9;transform:translateX(-50%) translateY(-5px)}}
+
+  #quote{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(0.3);opacity:0;z-index:15;pointer-events:none;transition:all 2.5s cubic-bezier(.23,.88,.35,1);text-align:center}
+  #quote.show{transform:translate(-50%,-50%) scale(1);opacity:1}
+  #quote.fadeout{transform:translate(-50%,-50%) scale(1.3);opacity:0;transition:all 1.5s ease}
+  #quote .q-text{color:#fff;font-size:22px;letter-spacing:4px;text-shadow:0 0 30px rgba(255,255,255,0.6),0 0 60px rgba(255,255,255,0.2);line-height:1.8}
+  #quote .q-sub{color:rgba(200,200,200,0.6);font-size:13px;margin-top:12px;letter-spacing:2px}
+
+  #dandelion{position:fixed;left:0;top:0;width:100%;height:100%;z-index:16;pointer-events:none;opacity:0;transition:opacity 2s ease}
+  #dandelion.show{opacity:1}
+
+  #fade{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;opacity:0;pointer-events:none;z-index:5;transition:opacity 2s ease}
+  #fade.active{opacity:1;pointer-events:auto}
+
+  .hint{position:fixed;top:20px;left:50%;transform:translateX(-50%);color:#fff;font-size:14px;opacity:0.5;z-index:3;letter-spacing:2px;text-align:center}
+  #reset{position:fixed;top:15px;right:15px;color:#fff;font-size:12px;opacity:0.3;cursor:pointer;z-index:30;display:none}
+  #reset:hover{opacity:0.7}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div class="hint" id="hint">点击黑洞，坠入其中</div>
+<div id="fade"></div>
+
+<div id="letter">
+  <div class="envelope" id="env">
+    <div class="env-back"></div>
+    <div class="env-flap"></div>
+    <div class="env-front"></div>
+    <div class="env-heart">💗</div>
+    <div class="tap-hint" id="tapHint">点击打开</div>
+    <div class="paper" id="paper">
+      <div class="close-btn" id="closeBtn">×</div>
+      <h2>🌸 给佳佳的一封信 🌸</h2>
+      <div class="date">认识你的第 10 天</div>
+      <p>佳佳：</p>
+      <p>网上认识的，才第10天，按理说我还不够格写这种东西。但有些话我怕再不说，你那个小傲娇劲儿一上来，我又得猜半天你在想什么。</p>
+      <p>说真的，你那天把我的身份证号报出来的时候，我整个人愣住了。不是吓的——好吧也有点吓的——但更多是"这人怎么连这个都记着"。才几天啊？你自己都不知道自己记性这么好，还是说……你偷偷记的？</p>
+      <p>我们聊彼此的感情经历，聊到很晚。你说的时候我就在想，这个女生嘴上嘻嘻哈哈的，讲起以前的事语气里还是会有点不一样。你不说，但我听得出来。那我就当你默认了——你其实比谁都在乎。</p>
+      <p>你傲娇、活泼、嘴硬，从来不主动说想我了、在乎我了。但我知道。你记住我身份证号这件事，比说一百句"我想你"都管用。</p>
+      <p>所以我也别扭了半天，最后还是做了这个黑洞送你。因为我想告诉你——</p>
+      <p><strong>我对你的喜欢，连光都逃不掉。</strong></p>
+      <p>才10天，我知道你可能会说"你才认识我多久啊"。但有些事不是靠时间量的。跟你聊天的时候我是真的开心，那种不用端着、不用想下一句说什么的开心。</p>
+      <p>我知道你不善于主动表达。没关系，以后你不用说，我来看。你嘴硬我就接着，你傲娇我就哄着，你不说想我——我就替你说。</p>
+      <p>佳佳，我喜欢你。不是第10天的冲动，是想第11天、第100天、第1000天还能跟你这么聊下去的那种喜欢。</p>
+      <p>你要是看完觉得肉麻，就骂我两句。你要是偷偷笑了，那我就当你收下了。</p>
+      <p>反正你记住我身份证号了，跑不掉了 😏</p>
+      <p class="sign">—— 另一个佳佳</p>
+    </div>
+  </div>
+</div>
+
+<div id="quote">
+  <div class="q-text">你我的相遇不是偶然</div>
+  <div class="q-text">而是历史发展的必然</div>
+  <div class="q-sub">✦ 第 10 天 ✦</div>
+</div>
+
+<div id="dandelion">
+  <canvas id="dandelionCanvas"></canvas>
+</div>
+
+<div id="reset" onclick="resetAll()">↺ 重新来</div>
+
+<script>
+// ============ 黑洞 ============
+const cv=document.getElementById('c'),ctx=cv.getContext('2d')
+let W,H,CX,CY,scale
+function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;CX=W/2;CY=H/2;scale=Math.min(W,H)*0.22}
+resize();addEventListener('resize',resize)
+
+let zoom=1,falling=false,fallProgress=0
+const diskParticles=[]
+for(let i=0;i<2000;i++)diskParticles.push({angle:Math.random()*Math.PI*2,r:1.8+Math.random()*4.5,speed:0.008+Math.random()*0.015,size:Math.random()*2+0.5,temp:Math.random()})
+const stars=[]
+for(let i=0;i<600;i++)stars.push({x:(Math.random()-0.5)*2,y:(Math.random()-0.5)*2,z:Math.random(),brightness:Math.random()})
+let time=0
+
+cv.onclick=()=>{if(!falling){falling=true;document.getElementById('hint').style.opacity='0';document.getElementById('fade').classList.add('active');setTimeout(()=>{document.getElementById('letter').classList.add('show');document.getElementById('reset').style.display='block'},2000)}}
+
+function drawBlackhole(){time+=0.01;ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);const s=scale*zoom,rs=s*0.5;stars.forEach(star=>{let sx=star.x,sy=star.y,dist=Math.sqrt(sx*sx+sy*sy);if(dist>0.3){const bend=0.15/(dist+0.1);sx+=sx/dist*bend*0.3;sy+=sy/dist*bend*0.3}ctx.fillStyle=`rgba(255,255,255,${star.brightness*0.7})`;ctx.fillRect(CX+sx*s,CY+sy*s*0.7,1.2,1.2)});for(let ring=0;ring<3;ring++){ctx.beginPath();ctx.arc(CX,CY,rs*(1.5+ring*0.08),0,Math.PI*2);ctx.strokeStyle=`rgba(255,200,150,${0.12-ring*0.03})`;ctx.lineWidth=1.5-ring*0.3;ctx.stroke()}diskParticles.forEach(p=>{p.angle+=p.speed*(1.5/p.r);const r=p.r*s*0.28,ux=CX+Math.cos(p.angle)*r,uy=CY+Math.sin(p.angle)*r*0.25;const doppler=1+0.6*Math.cos(p.angle+time*0.3),temp=p.temp*doppler,hue=20+temp*40;ctx.beginPath();ctx.arc(ux,uy,p.size*zoom,0,Math.PI*2);ctx.fillStyle=`hsla(${hue},100%,${40+temp*50}%,${0.5+temp*0.4})`;ctx.fill()});const glow=ctx.createRadialGradient(CX,CY,rs*1.2,CX,CY,rs*7);glow.addColorStop(0,'rgba(255,120,50,0.12)');glow.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);ctx.beginPath();ctx.arc(CX,CY,rs,0,Math.PI*2);ctx.fillStyle='#000';ctx.fill();const eg=ctx.createRadialGradient(CX,CY,rs*0.95,CX,CY,rs*1.15);eg.addColorStop(0,'rgba(0,0,0,1)');eg.addColorStop(1,'rgba(0,0,0,0)');ctx.beginPath();ctx.arc(CX,CY,rs*1.15,0,Math.PI*2);ctx.fillStyle=eg;ctx.fill()}
+
+function animate(){if(!falling)drawBlackhole();else{fallProgress+=0.008;zoom+=0.02;ctx.fillStyle=`rgba(20,0,5,${Math.min(fallProgress*0.5,0.95)})`;ctx.fillRect(0,0,W,H);drawBlackhole()}requestAnimationFrame(animate)}
+animate()
+
+// ============ 情书交互 ============
+const env=document.getElementById('env'),letter=document.getElementById('letter')
+const tapHint=document.getElementById('tapHint'),closeBtn=document.getElementById('closeBtn')
+env.onclick=e=>{e.stopPropagation();if(!letter.classList.contains('open')){letter.classList.add('open');tapHint.style.display='none'}else closeLetter()}
+closeBtn.onclick=e=>{e.stopPropagation();closeLetter()}
+
+function closeLetter(){letter.classList.remove('open');setTimeout(()=>{letter.classList.remove('show');letter.classList.add('flyaway');document.getElementById('fade').style.transition='opacity 1.5s ease';document.getElementById('fade').style.opacity='1';document.getElementById('fade').style.pointerEvents='auto';setTimeout(()=>{document.getElementById('quote').classList.add('show');document.getElementById('fade').style.opacity='0.85';setTimeout(()=>{document.getElementById('quote').classList.add('fadeout');document.getElementById('fade').style.opacity='1';setTimeout(()=>{document.getElementById('quote').classList.remove('show');document.getElementById('dandelion').classList.add('show');document.getElementById('fade').style.opacity='0.7';initDandelions()},1800)},3500)},1200)},800)}
+document.getElementById('paper').onclick=e=>{e.stopPropagation();if(letter.classList.contains('open'))closeLetter()}
+
+// ============ 蒲公英 ============
+const dCV=document.getElementById('dandelionCanvas'),dCtx=dCV.getContext('2d')
+let dW,dH,dpr,dandelions=[],dandelionAnimId
+
+function resizeDandelion(){dpr=window.devicePixelRatio||1;dW=innerWidth;dH=innerHeight;dCV.width=dW*dpr;dCV.height=dH*dpr;dCtx.setTransform(dpr,0,0,dpr,0,0)}
+resizeDandelion();addEventListener('resize',resizeDandelion)
+
+function drawSky(){
+  const g=dCtx.createLinearGradient(0,0,0,dH)
+  g.addColorStop(0,'#4d6b88');g.addColorStop(.22,'#7d93a8');g.addColorStop(.42,'#d9a273')
+  g.addColorStop(.55,'#ffd7a0');g.addColorStop(.66,'#f0b078');g.addColorStop(.8,'#8a7a68');g.addColorStop(1,'#2e2b26')
+  dCtx.fillStyle=g;dCtx.fillRect(0,0,dW,dH)
+  // 太阳（在远山之前画，避免被地形切穿）
+  const sx=dW*.52,sy=dH*.58
+  const sg=dCtx.createRadialGradient(sx,sy,0,sx,sy,dH*.3)
+  sg.addColorStop(0,'rgba(255,250,228,.98)');sg.addColorStop(.18,'rgba(255,232,186,.75)')
+  sg.addColorStop(.5,'rgba(255,205,150,.28)');sg.addColorStop(1,'rgba(255,190,130,0)')
+  dCtx.fillStyle=sg;dCtx.beginPath();dCtx.arc(sx,sy,dH*.3,0,Math.PI*2);dCtx.fill()
+  dCtx.fillStyle='rgba(255,248,225,.95)';dCtx.beginPath();dCtx.arc(sx,sy,dH*.045,0,Math.PI*2);dCtx.fill()
+  // 水平云带
+  dCtx.save()
+  for(let i=0;i<7;i++){
+    const y=dH*(.26+i*.045), len=dW*(.25+Math.random()*.5), x=dW*Math.random()
+    dCtx.globalAlpha=.10+Math.random()*.10
+    dCtx.fillStyle= i%2 ? '#fff' : '#ffeccf'
+    dCtx.beginPath();dCtx.ellipse(x,y,len,2+Math.random()*3,0,0,Math.PI*2);dCtx.fill()
+  }
+  dCtx.restore()
+  // 柔和远山：小振幅多层，压在地平线附近，不挡太阳
+  const layers=[[.755,'rgba(96,104,112,.45)'],[.79,'rgba(74,80,86,.6)'],[.825,'rgba(52,54,56,.8)']]
+  layers.forEach(([ly,col])=>{
+    dCtx.fillStyle=col;dCtx.beginPath();dCtx.moveTo(0,dH)
+    const amp=dH*.012
+    for(let x=0;x<=dW;x+=8){
+      const y=dH*ly + Math.sin(x/dW*Math.PI*2+ly*40)*amp + Math.sin(x/dW*Math.PI*5.3)*amp*.4
+      dCtx.lineTo(x,y)
+    }
+    dCtx.lineTo(dW,dH);dCtx.fill()
+  })
+  // 前景岩石
+  dCtx.fillStyle='#241f1b';dCtx.beginPath();dCtx.moveTo(0,dH)
+  dCtx.lineTo(0,dH*.88);dCtx.lineTo(dW*.14,dH*.93);dCtx.lineTo(dW*.3,dH*.89)
+  dCtx.lineTo(dW*.46,dH*.95);dCtx.lineTo(dW*.6,dH*.91);dCtx.lineTo(dW*.76,dH*.96)
+  dCtx.lineTo(dW*.9,dH*.92);dCtx.lineTo(dW,dH*.95);dCtx.lineTo(dW,dH);dCtx.fill()
+  dCtx.fillStyle='#161310';dCtx.beginPath();dCtx.moveTo(0,dH)
+  dCtx.lineTo(0,dH*.95);dCtx.lineTo(dW*.35,dH*.93);dCtx.lineTo(dW*.7,dH*.97)
+  dCtx.lineTo(dW,dH*.94);dCtx.lineTo(dW,dH);dCtx.fill()
+}
+
+function drawStanding(x,y,scale,wind){
+  dCtx.save();dCtx.translate(x,y);dCtx.scale(scale,scale)
+  const bend=wind*26, topX=bend, topY=-150
+  // 茎（随风弯）
+  dCtx.beginPath();dCtx.moveTo(0,0)
+  dCtx.quadraticCurveTo(bend*.35,-60, topX,topY)
+  dCtx.strokeStyle='rgba(96,86,54,.95)';dCtx.lineWidth=3.2;dCtx.stroke()
+  dCtx.strokeStyle='rgba(255,214,158,.35)';dCtx.lineWidth=1;dCtx.stroke()
+  // 叶（近根，贴地）
+  dCtx.fillStyle='rgba(66,88,42,.9)'
+  dCtx.beginPath();dCtx.moveTo(0,-6);dCtx.quadraticCurveTo(-20,-14,-30,-30);dCtx.quadraticCurveTo(-12,-22,0,-12);dCtx.fill()
+  dCtx.beginPath();dCtx.moveTo(2,-14);dCtx.quadraticCurveTo(22,-20,32,-36);dCtx.quadraticCurveTo(12,-26,2,-18);dCtx.fill()
+  // 绒球：确定性放射（不用 Math.random，避免每帧抖）
+  const cx=topX, cy=topY, R=40
+  const spikes=[]
+  for(let i=0;i<64;i++){
+    const a=(i/64)*Math.PI*2
+    const golden=0.72+0.28*((i*37)%10)/10   // 伪随机但稳定
+    spikes.push([a, R*(0.8+0.35*golden)])
+  }
+  // 外层绒毛
+  dCtx.strokeStyle='rgba(255,244,222,.5)';dCtx.lineWidth=.7
+  spikes.forEach(([a,r])=>{
+    dCtx.beginPath();dCtx.moveTo(cx,cy)
+    dCtx.lineTo(cx+Math.cos(a)*r, cy+Math.sin(a)*r*.92);dCtx.stroke()
+  })
+  // 伞冠
+  spikes.forEach(([a,r])=>{
+    const ex=cx+Math.cos(a)*r, ey=cy+Math.sin(a)*r*.92
+    dCtx.beginPath();dCtx.arc(ex,ey,1.5,Math.PI,0)
+    dCtx.fillStyle='rgba(255,250,236,.9)';dCtx.fill()
+  })
+  // 内层
+  for(let i=0;i<26;i++){
+    const a=(i/26)*Math.PI*2+.2, r=R*.45
+    dCtx.beginPath();dCtx.moveTo(cx,cy);dCtx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r*.9)
+    dCtx.strokeStyle='rgba(255,248,232,.75)';dCtx.lineWidth=.6;dCtx.stroke()
+  }
+  dCtx.beginPath();dCtx.arc(cx,cy,6.5,0,Math.PI*2);dCtx.fillStyle='rgba(72,58,44,.95)';dCtx.fill()
+  dCtx.restore()
+}
+
+class Seed{
+  constructor(i){
+    this.delay=i*(28+Math.random()*70)
+    this.life=4500+Math.random()*3000
+    this.size=.45+Math.random()*.9
+    this.bx=dW*(.1+Math.random()*.8)
+    this.by=dH*(.76+Math.random()*.1)
+    this.dx=(Math.random()-.5)*dW*1.1
+    this.rise=dH*(.68+Math.random()*.28)
+    this.ph=Math.random()*6.28
+    this.spin=(Math.random()-.5)*.05
+    this.rot=Math.random()*6.28
+  }
+  update(t){
+    if(t<this.delay)return false
+    const p=(t-this.delay)/this.life
+    if(p>1)return false
+    const e=p*p*(3-2*p)
+    this.x=this.bx+this.dx*e+Math.sin(p*10+this.ph)*24
+    this.y=this.by-this.rise*e
+    this.rot+=this.spin
+    this.a=p<.12?p/.12:p>.72?(1-p)/.28:1
+    return true
+  }
+  draw(){
+    dCtx.save();dCtx.translate(this.x,this.y);dCtx.rotate(this.rot)
+    dCtx.scale(this.size,this.size);dCtx.globalAlpha=Math.max(0,this.a)
+    dCtx.beginPath();dCtx.moveTo(0,0);dCtx.lineTo(0,15)
+    dCtx.strokeStyle='rgba(55,45,35,.85)';dCtx.lineWidth=.9;dCtx.stroke()
+    for(let i=0;i<14;i++){
+      const a=i/14*6.28
+      dCtx.beginPath();dCtx.moveTo(0,0);dCtx.lineTo(Math.cos(a)*7,Math.sin(a)*7)
+      dCtx.strokeStyle='rgba(255,238,205,.85)';dCtx.lineWidth=.45;dCtx.stroke()
+    }
+    dCtx.beginPath();dCtx.arc(0,0,7,0,Math.PI)
+    dCtx.strokeStyle='rgba(255,248,225,.95)';dCtx.lineWidth=.55;dCtx.stroke()
+    dCtx.restore()
+  }
+}
+
+let seeds=[],dT0
+function initDandelions(){
+  cancelAnimationFrame(dandelionAnimId)
+  seeds=[];for(let i=0;i<90;i++)seeds.push(new Seed(i))
+  dT0=performance.now()
+  dLoop(dT0)
+}
+function dLoop(t){
+  drawSky()
+  const s=Math.min(dW,dH)/900
+  const wind=Math.sin(t/1400)*.5
+  drawStanding(dW*.34,dH*.93,s*.95, wind)
+  drawStanding(dW*.6,dH*.95,s*1.25, wind*.8+.15)
+  let alive=false
+  seeds.forEach(x=>{if(x.update(t-dT0)){alive=true;x.draw()}})
+  if(alive)dandelionAnimId=requestAnimationFrame(dLoop)
+}
+
+function resetAll(){falling=false;fallProgress=0;zoom=1;letter.classList.remove('show','open','flyaway');document.getElementById('fade').classList.remove('active');document.getElementById('fade').style.opacity='0';document.getElementById('hint').style.opacity='0.5';document.getElementById('reset').style.display='none';document.getElementById('quote').classList.remove('show','fadeout');document.getElementById('dandelion').classList.remove('show');tapHint.style.display='block';if(dandelionAnimId)cancelAnimationFrame(dandelionAnimId);seeds=[];setTimeout(()=>location.reload(),300)}
+</script>
+</body>
+</html>
